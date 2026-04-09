@@ -1,21 +1,36 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Сохраняем сигнатуры для корректной работы Generics (исправляет краш TypeToken)
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes EnclosingMethod
+-keepattributes InnerClasses
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Gson конкретные правила
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep public class * implements com.google.gson.TypeAdapterFactory
+-keep public class * implements com.google.gson.JsonSerializer
+-keep public class * implements com.google.gson.JsonDeserializer
+-keep class com.google.gson.internal.bind.ReflectiveTypeAdapterFactory$Adapter { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Сохраняем наши модели данных, чтобы Gson мог заполнять их поля
+-keep class com.vkturn.proxy.models.** { *; }
+-keep class com.vkturn.proxy.data.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Сохраняем ViewModel и их конструкторы для корректного создания
+-keep class com.vkturn.proxy.viewmodel.** { *; }
+-keepclassmembers class * extends androidx.lifecycle.ViewModel {
+    <init>(...);
+}
+
+# CameraX и ML Kit (для работы QR)
+-keep class androidx.camera.** { *; }
+-keep class com.google.mlkit.** { *; }
+-keep class com.google.android.gms.** { *; }
+
+# JSch (SSH) правила
+-keep class com.jcraft.jsch.** { *; }
+-keep class com.jcraft.jzlib.** { *; }
+-keep class org.bouncycastle.** { *; }
+-keep interface com.jcraft.jsch.** { *; }
+-dontwarn com.jcraft.jsch.**
+-dontwarn pbkdf2.**

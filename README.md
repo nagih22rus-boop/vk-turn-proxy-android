@@ -1,6 +1,6 @@
 # VK TURN Proxy Android
 
-Android-приложение на основе [vk-turn-proxy](https://github.com/cacggghp/vk-turn-proxy).
+Android-приложение под ядро [vk-turn-proxy](https://github.com/cacggghp/vk-turn-proxy).
 
 ## О проекте (Good TURN)
 

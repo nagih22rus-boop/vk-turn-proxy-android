@@ -17,3 +17,9 @@ local.properties
 # Build outputs
 **/build/
 **/release/
+
+# Junk and unwanted files
+.vscode/
+.kotlin/
+.gradle/
+RELEASE_NOTES_v2.0.0.md
