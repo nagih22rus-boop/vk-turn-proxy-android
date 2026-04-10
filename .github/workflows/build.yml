@@ -26,7 +26,6 @@ jobs:
         run: |
           # Clear conflicting SDK paths
           unset ANDROID_SDK_ROOT
-          echo "ANDROID_SDK_ROOT=" >> $GITHUB_ENV
           
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk/cmdline-tools
@@ -34,8 +33,13 @@ jobs:
           unzip -q cmdline-tools.zip
           mv cmdline-tools latest
           rm cmdline-tools.zip
-          echo "y" | latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          latest/bin/sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          
+          # Accept all licenses
+          yes | latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          
+          # Install required SDK components
+          latest/bin/sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
+          
           echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
           echo "PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools" >> $GITHUB_ENV
 
