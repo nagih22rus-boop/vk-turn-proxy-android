@@ -22,8 +22,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
+      - name: Download Android SDK
+        uses: browser-actions/setup-android@latest
+        with:
+          api-level: 34
+          build-tools: 34.0.0
 
       - name: Cache Gradle packages
         uses: actions/cache@v3
@@ -39,7 +42,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v3
