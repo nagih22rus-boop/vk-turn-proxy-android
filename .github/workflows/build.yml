@@ -39,7 +39,10 @@ jobs:
         run: chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: List build output
+        run: ls -la app/build/outputs/apk/debug/ || echo "APK directory not found"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
