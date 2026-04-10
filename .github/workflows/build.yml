@@ -24,24 +24,15 @@ jobs:
 
       - name: Setup Android SDK
         run: |
-          # Clear conflicting SDK paths
-          unset ANDROID_SDK_ROOT
-          
-          mkdir -p $HOME/android-sdk/cmdline-tools
-          cd $HOME/android-sdk/cmdline-tools
-          curl -sL https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -o cmdline-tools.zip
-          unzip -q cmdline-tools.zip
-          mv cmdline-tools latest
-          rm cmdline-tools.zip
+          # Use pre-installed SDK and fix conflicting variables
+          echo "ANDROID_HOME=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=/usr/local/lib/android/sdk" >> $GITHUB_ENV
           
           # Accept all licenses
-          yes | latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
           
           # Install required SDK components
-          latest/bin/sdkmanager "platform-tools" "platforms;android-36" "build-tools;35.0.0"
-          
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "PATH=$PATH:$HOME/android-sdk/cmdline-tools/latest/bin:$HOME/android-sdk/platform-tools" >> $GITHUB_ENV
+          /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-36" "build-tools;35.0.0" "platform-tools"
 
       - name: Cache Gradle packages
         uses: actions/cache@v3
