@@ -20,6 +20,7 @@ import com.vkturn.proxy.viewmodel.MainViewModel
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.net.VpnService
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
@@ -42,6 +43,7 @@ import com.vkturn.proxy.ui.components.ExpandableSection
 import com.vkturn.proxy.data.AppPreferences
 import com.vkturn.proxy.ui.components.QrScannerScreen
 import com.vkturn.proxy.ui.components.QrExportDialog
+import com.vkturn.proxy.ProxyService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -225,6 +227,22 @@ fun SettingsScreen(viewModel: MainViewModel) {
     // VPN Mode state
     var useVpnMode by remember { mutableStateOf(false) }
     
+    // VPN permission launcher
+    val vpnPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            ProxyService.addLog("VPN permission granted by user")
+            Toast.makeText(context, "VPN разрешение получено", Toast.LENGTH_SHORT).show()
+        } else {
+            ProxyService.addLog("VPN permission denied by user")
+            useVpnMode = false
+            val prefs = context.getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
+            prefs.edit().putBoolean("useVpnMode", false).apply()
+            Toast.makeText(context, "VPN разрешение отклонено", Toast.LENGTH_LONG).show()
+        }
+    }
+    
     // Load VPN mode preference
     LaunchedEffect(Unit) {
         val prefs = context.getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
@@ -274,11 +292,25 @@ fun SettingsScreen(viewModel: MainViewModel) {
                 Switch(
                     checked = useVpnMode,
                     onCheckedChange = { checked ->
-                        useVpnMode = checked
-                        val prefs = context.getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
-                        prefs.edit().putBoolean("useVpnMode", checked).apply()
                         if (checked) {
-                            Toast.makeText(context, "Перезапустите прокси для применения", Toast.LENGTH_SHORT).show()
+                            // Check VPN permission first
+                            val vpnIntent = VpnService.prepare(context)
+                            if (vpnIntent != null) {
+                                // Need to request permission
+                                ProxyService.addLog("Requesting VPN permission from UI...")
+                                vpnPermissionLauncher.launch(vpnIntent)
+                            } else {
+                                // Permission already granted
+                                useVpnMode = true
+                                val prefs = context.getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
+                                prefs.edit().putBoolean("useVpnMode", true).apply()
+                                Toast.makeText(context, "VPN Mode включен. Перезапустите прокси.", Toast.LENGTH_SHORT).show()
+                            }
+                        } else {
+                            useVpnMode = false
+                            val prefs = context.getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
+                            prefs.edit().putBoolean("useVpnMode", false).apply()
+                            Toast.makeText(context, "VPN Mode выключен", Toast.LENGTH_SHORT).show()
                         }
                     }
                 )

@@ -107,10 +107,19 @@ class ProxyService : Service() {
     
     private fun startVpnService() {
         try {
+            // Check VPN permission first
+            val vpnIntent = android.net.VpnService.prepare(this)
+            if (vpnIntent != null) {
+                addLog("VPN permission required - need to request")
+                // Permission not granted - need to handle this in Activity
+                // For now, try to start anyway - VpnService will log the error
+            }
+            
             val intent = Intent(this, com.vkturn.proxy.VpnService::class.java).apply {
                 action = "START"
             }
             startService(intent)
+            addLog("VpnService start requested")
         } catch (e: Exception) {
             addLog("Error starting VPN service: ${e.message}")
         }

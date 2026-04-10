@@ -45,14 +45,18 @@ class VpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        addLog("VpnService onStartCommand: action=${intent?.action}")
         when (intent?.action) {
             "START" -> startVpn()
             "STOP" -> stopVpnService()
+            else -> addLog("Unknown action: ${intent?.action}")
         }
         return START_STICKY
     }
 
     private fun startVpn() {
+        addLog("startVpn() called, isActive=${isActive.get()}")
+        
         if (isActive.get()) {
             addLog("VPN already running")
             return
@@ -65,6 +69,17 @@ class VpnService : VpnService() {
             proxyPort = localPort.split(":").lastOrNull()?.toIntOrNull() ?: 9000
             
             addLog("Starting VPN with proxy port: $proxyPort")
+            addLog("Checking VPN permission...")
+            
+            // Check if VPN permission is granted
+            val prepare = VpnService.prepare(this)
+            if (prepare != null) {
+                addLog("VPN permission required! Activity: ${prepare.component}")
+                // Need to request permission - this should be handled by the caller
+                addLog("ERROR: VPN permission not granted. Please allow VPN in system dialog.")
+                return
+            }
+            addLog("VPN permission OK")
 
             // Build VPN interface
             val builder = Builder()

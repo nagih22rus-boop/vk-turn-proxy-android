@@ -2,6 +2,7 @@ package com.vkturn.proxy
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -21,6 +22,17 @@ class MainActivity : ComponentActivity() {
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
+
+    // VPN permission request
+    private val vpnPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            ProxyService.addLog("VPN permission granted!")
+        } else {
+            ProxyService.addLog("VPN permission denied!")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -44,6 +56,17 @@ class MainActivity : ComponentActivity() {
             VkTurnProxyTheme {
                 AppNavigation(viewModel)
             }
+        }
+    }
+
+    // Method to request VPN permission - can be called from anywhere
+    fun requestVpnPermission() {
+        val vpnIntent = VpnService.prepare(this)
+        if (vpnIntent != null) {
+            ProxyService.addLog("Requesting VPN permission...")
+            vpnPermissionLauncher.launch(vpnIntent)
+        } else {
+            ProxyService.addLog("VPN permission already granted")
         }
     }
 }
