@@ -141,44 +141,48 @@ class VpnService : VpnService() {
         // Buffer for reading packets from VPN
         val packetBuffer = ByteBuffer.allocate(65535)
         
-        // Create TCP connection to local proxy
-        var proxySocket: java.net.Socket? = null
-        var proxyIn: java.io.InputStream? = null
-        var proxyOut: java.io.OutputStream? = null
+        // Create UDP socket to connect to local proxy
+        var proxySocket: DatagramSocket? = null
         
         try {
-            // Connect to proxy via TCP (like WireGuard does)
-            proxySocket = java.net.Socket("127.0.0.1", proxyPort)
-            proxySocket.soTimeout = 0 // No timeout
-            proxyIn = proxySocket.getInputStream()
-            proxyOut = proxySocket.getOutputStream()
+            // Connect to proxy via UDP
+            proxySocket = DatagramSocket()
+            proxySocket.connect(InetAddress.getByName("127.0.0.1"), proxyPort)
+            proxySocket.soTimeout = 0 // No timeout - blocking
             
-            addLog("Connected to proxy at 127.0.0.1:$proxyPort via TCP")
+            addLog("Connected to proxy at 127.0.0.1:$proxyPort via UDP")
             
-            // Use a simple forwarding loop
-            // Read from VPN, write to proxy, read from proxy, write to VPN
+            // Buffer for proxy communication
             val buffer = ByteArray(65535)
             
             while (isActive.get()) {
                 try {
-                    // Non-blocking read from VPN
+                    // Read packet from VPN interface
                     val length = inputStream.read(buffer)
                     
                     if (length > 0) {
-                        // Forward to proxy
-                        proxyOut?.write(buffer, 0, length)
-                        proxyOut?.flush()
+                        addLog("Read $length bytes from VPN")
+                        
+                        // Forward to proxy via UDP
+                        val dp = DatagramPacket(buffer, length, InetAddress.getByName("127.0.0.1"), proxyPort)
+                        proxySocket.send(dp)
+                        addLog("Sent to proxy")
                         
                         // Read response from proxy
-                        val responseLen = proxyIn?.read(buffer) ?: -1
-                        if (responseLen > 0) {
+                        val responseBuf = ByteArray(65535)
+                        val responsePacket = DatagramPacket(responseBuf, responseBuf.size)
+                        try {
+                            proxySocket.receive(responsePacket)
+                            val responseLen = responsePacket.length
+                            addLog("Received $responseLen bytes from proxy")
+                            
                             // Write response back to VPN
-                            outputStream.write(buffer, 0, responseLen)
+                            outputStream.write(responseBuf, 0, responseLen)
                             outputStream.flush()
+                        } catch (e: Exception) {
+                            addLog("No response from proxy: ${e.message}")
                         }
                     }
-                } catch (e: java.io.InterruptedIOException) {
-                    // Timeout - continue
                 } catch (e: Exception) {
                     if (isActive.get()) {
                         addLog("Packet processing error: ${e.message}")
@@ -192,8 +196,6 @@ class VpnService : VpnService() {
             try {
                 inputStream.close()
                 outputStream.close()
-                proxyIn?.close()
-                proxyOut?.close()
                 proxySocket?.close()
             } catch (e: Exception) {
                 // Ignore close errors
