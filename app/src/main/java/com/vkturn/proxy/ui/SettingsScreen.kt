@@ -222,6 +222,15 @@ fun SettingsScreen(viewModel: MainViewModel) {
         )
     }
 
+    // VPN Mode state
+    var useVpnMode by remember { mutableStateOf(false) }
+    
+    // Load VPN mode preference
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
+        useVpnMode = prefs.getBoolean("useVpnMode", false)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -231,6 +240,50 @@ fun SettingsScreen(viewModel: MainViewModel) {
     ) {
         // 1. Client Settings Header
         Text("Настройки Клиента", style = MaterialTheme.typography.titleLarge)
+
+        // VPN Mode Switch
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = if (useVpnMode) 
+                    MaterialTheme.colorScheme.primaryContainer 
+                else 
+                    MaterialTheme.colorScheme.surfaceVariant
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "VPN Mode (Без WireGuard)",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        if (useVpnMode) "Трафик маршрутизируется через встроенный VPN" 
+                        else "Требуется WireGuard для маршрутизации",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = useVpnMode,
+                    onCheckedChange = { checked ->
+                        useVpnMode = checked
+                        val prefs = context.getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
+                        prefs.edit().putBoolean("useVpnMode", checked).apply()
+                        if (checked) {
+                            Toast.makeText(context, "Перезапустите прокси для применения", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                )
+            }
+        }
 
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(

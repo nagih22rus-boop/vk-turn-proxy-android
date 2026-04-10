@@ -24,6 +24,7 @@ class ProxyService : Service() {
         val logBuffer = mutableListOf<String>()
         var onLogReceived: ((String) -> Unit)? = null
         var appContext: Context? = null
+        var useVpnMode: Boolean = false  // New: VPN mode flag
 
         fun addLog(msg: String) {
             if (logBuffer.size > 200) logBuffer.removeAt(0)
@@ -58,6 +59,10 @@ class ProxyService : Service() {
             val channel = NotificationChannel("ProxyChannel", "Proxy", NotificationManager.IMPORTANCE_LOW)
             getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
         }
+        
+        // Load VPN mode preference
+        val prefs = getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
+        useVpnMode = prefs.getBoolean("useVpnMode", false)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -65,13 +70,17 @@ class ProxyService : Service() {
 
         appContext = applicationContext
         
+        // Reload VPN mode preference
+        val prefs = getSharedPreferences("ProxyPrefs", Context.MODE_PRIVATE)
+        useVpnMode = prefs.getBoolean("useVpnMode", false)
+        
         val openAppIntent = packageManager.getLaunchIntentForPackage(packageName)?.let {
             android.app.PendingIntent.getActivity(this, 0, it, android.app.PendingIntent.FLAG_IMMUTABLE)
         }
         
         val notification = NotificationCompat.Builder(this, "ProxyChannel")
-            .setContentTitle("TURN Proxy")
-            .setContentText("Работает в фоне")
+            .setContentTitle(if (useVpnMode) "VK VPN" else "TURN Proxy")
+            .setContentText(if (useVpnMode) "VPN активен" else "Прокси работает в фоне")
             .setSmallIcon(android.R.drawable.ic_menu_preferences)
             .setContentIntent(openAppIntent)
             .setOngoing(true)
@@ -84,9 +93,38 @@ class ProxyService : Service() {
         wakeLock?.acquire()
 
         addLog("=== ЗАПУСК ПРОКСИ ===")
+        
+        // Start VPN if enabled
+        if (useVpnMode) {
+            addLog("VPN mode enabled - starting VPN service")
+            startVpnService()
+        }
+        
         startBinary()
 
         return START_STICKY
+    }
+    
+    private fun startVpnService() {
+        try {
+            val intent = Intent(this, com.vkturn.proxy.VpnService::class.java).apply {
+                action = "START"
+            }
+            startService(intent)
+        } catch (e: Exception) {
+            addLog("Error starting VPN service: ${e.message}")
+        }
+    }
+    
+    private fun stopVpnService() {
+        try {
+            val intent = Intent(this, com.vkturn.proxy.VpnService::class.java).apply {
+                action = "STOP"
+            }
+            startService(intent)
+        } catch (e: Exception) {
+            addLog("Error stopping VPN service: ${e.message}")
+        }
     }
 
     private fun startBinary() {
@@ -219,6 +257,11 @@ class ProxyService : Service() {
                     p.destroy()
                 }
             }
+        }
+        
+        // Stop VPN if it was running
+        if (useVpnMode) {
+            stopVpnService()
         }
         
         if (wakeLock?.isHeld == true) wakeLock?.release()
