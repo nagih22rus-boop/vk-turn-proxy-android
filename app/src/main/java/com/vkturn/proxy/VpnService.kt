@@ -81,18 +81,27 @@ class VpnService : VpnService() {
             }
             addLog("VPN permission OK")
 
-            // Build VPN interface
+            // Build VPN interface - matching WireGuard config
             val builder = Builder()
                 .setSession("VK TURN VPN")
-                .addAddress("10.0.0.2", 32)
-                .addRoute("0.0.0.0", 0)
-                .addDnsServer("8.8.8.8")
-                .addDnsServer("8.8.4.4")
-                .setMtu(1500)
+                .addAddress("192.168.15.4", 24)  // Same as WireGuard Address
+                .addRoute("0.0.0.0", 0)  // Route all traffic through VPN
+                .addDnsServer("1.1.1.1")  // Cloudflare DNS
+                .addDnsServer("8.8.8.8")   // Google DNS
+                .setMtu(1280)  // Same as WireGuard MTU
                 .setBlocking(true)
 
-            // Allow app to bypass VPN
+            // Exclude this app from VPN - same as WireGuard ExcludedApplications
+            // This allows the app to connect directly to the proxy
             builder.addDisallowedApplication(packageName)
+            
+            // Add other common apps to exclude (optional)
+            try {
+                // Try to exclude Termux for debugging
+                builder.addDisallowedApplication("com.termux")
+            } catch (e: Exception) {
+                // App might not be installed, ignore
+            }
 
             vpnInterface = builder.establish()
             
@@ -130,57 +139,46 @@ class VpnService : VpnService() {
         val outputStream = FileOutputStream(vpnFd.fileDescriptor)
         
         // Buffer for reading packets from VPN
-        val packetBuffer = ByteBuffer.allocate(32767)
+        val packetBuffer = ByteBuffer.allocate(65535)
         
-        // Buffer for proxy communication
-        val proxyBuffer = ByteArray(32767)
-        
-        // Create UDP socket to connect to local proxy
-        var proxySocket: DatagramSocket? = null
+        // Create TCP connection to local proxy
+        var proxySocket: java.net.Socket? = null
+        var proxyIn: java.io.InputStream? = null
+        var proxyOut: java.io.OutputStream? = null
         
         try {
-            proxySocket = DatagramSocket()
-            proxySocket.connect(InetAddress.getByName("127.0.0.1"), proxyPort)
+            // Connect to proxy via TCP (like WireGuard does)
+            proxySocket = java.net.Socket("127.0.0.1", proxyPort)
             proxySocket.soTimeout = 0 // No timeout
+            proxyIn = proxySocket.getInputStream()
+            proxyOut = proxySocket.getOutputStream()
             
-            addLog("Connected to proxy at 127.0.0.1:$proxyPort")
+            addLog("Connected to proxy at 127.0.0.1:$proxyPort via TCP")
+            
+            // Use a simple forwarding loop
+            // Read from VPN, write to proxy, read from proxy, write to VPN
+            val buffer = ByteArray(65535)
             
             while (isActive.get()) {
                 try {
-                    // Read packet from VPN interface
-                    packetBuffer.clear()
-                    val length = inputStream.read(packetBuffer.array())
+                    // Non-blocking read from VPN
+                    val length = inputStream.read(buffer)
                     
                     if (length > 0) {
-                        packetBuffer.limit(length)
+                        // Forward to proxy
+                        proxyOut?.write(buffer, 0, length)
+                        proxyOut?.flush()
                         
-                        // Extract destination from IP packet
-                        val destIp = extractDestinationIp(packetBuffer.array(), length)
-                        val destPort = extractDestinationPort(packetBuffer.array(), length)
-                        
-                        if (destIp != null && destPort != null) {
-                            // Forward to proxy
-                            val proxyPacket = DatagramPacket(
-                                packetBuffer.array(), 
-                                length,
-                                InetAddress.getByName("127.0.0.1"),
-                                proxyPort
-                            )
-                            proxySocket.send(proxyPacket)
-                            
-                            // Read response from proxy
-                            val responsePacket = DatagramPacket(proxyBuffer, proxyBuffer.size)
-                            try {
-                                proxySocket.receive(responsePacket)
-                                
-                                // Write response back to VPN
-                                outputStream.write(proxyBuffer, 0, responsePacket.length)
-                                outputStream.flush()
-                            } catch (e: Exception) {
-                                // Timeout or no response - that's ok for UDP
-                            }
+                        // Read response from proxy
+                        val responseLen = proxyIn?.read(buffer) ?: -1
+                        if (responseLen > 0) {
+                            // Write response back to VPN
+                            outputStream.write(buffer, 0, responseLen)
+                            outputStream.flush()
                         }
                     }
+                } catch (e: java.io.InterruptedIOException) {
+                    // Timeout - continue
                 } catch (e: Exception) {
                     if (isActive.get()) {
                         addLog("Packet processing error: ${e.message}")
@@ -189,10 +187,13 @@ class VpnService : VpnService() {
             }
         } catch (e: Exception) {
             addLog("VPN thread error: ${e.message}")
+            e.printStackTrace()
         } finally {
             try {
                 inputStream.close()
                 outputStream.close()
+                proxyIn?.close()
+                proxyOut?.close()
                 proxySocket?.close()
             } catch (e: Exception) {
                 // Ignore close errors
