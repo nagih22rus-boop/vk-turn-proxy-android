@@ -51,19 +51,19 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: List build output
-        run: ls -la app/build/outputs/apk/debug/ || echo "APK directory not found"
+        run: find app/build/outputs/apk -name "*.apk" -type f
 
-      - name: Upload APK
+      - name: Upload all APKs
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: app/build/outputs/apk/**/*.apk
 
       - name: Upload APK to Release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          files: app/build/outputs/apk/debug/app-debug.apk
+          files: app/build/outputs/apk/**/*.apk
           draft: true
           prerelease: false
         env:
